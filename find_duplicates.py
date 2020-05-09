@@ -1,3 +1,5 @@
+import requests
+
 def _read_arguments():
     '''
     Read input arguments
@@ -13,4 +15,8 @@ def _read_arguments():
 
 if __name__ == "__main__":
     args = _read_arguments()
-    print(args)
+    
+    r = requests.get('https://api.spotify.com/v1/users/' + args['username'] + '/playlists?limit=50',
+                     headers = {'Content-Type': 'application/json', 
+                                'Authorization': 'Bearer ' + args['oauth']})
+    print(r.text)
