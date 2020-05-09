@@ -1,21 +1,16 @@
-import sys
-import argparse
-import json
-
-def _parse_arguments():
+def _read_arguments():
     '''
-    Parse the input arguments
+    Read input arguments
 
     Returns:
-        - a parameters object
+        - a dictionary containing the username and the oauth key
     '''
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--input', help = 'input json playlists json file')
-
-    args = parser.parse_args()
+    args = {}
+    args['username'] = input('Spotify username: ')
+    args['oauth'] = input('Oauth key: ')
 
     return args
 
 if __name__ == "__main__":
-    args = _parse_arguments()
+    args = _read_arguments()
+    print(args)
