@@ -27,6 +27,9 @@ def _validate_input_data(r):
         else:
             raise ValueError('Invalid oauth token')
 
+    if len(r['items']) == 0:
+        raise(ValueError('The selected user has not created any playlist'))
+
 if __name__ == "__main__":
     args = _read_arguments()
     
@@ -35,4 +38,6 @@ if __name__ == "__main__":
                                            'Authorization': 'Bearer ' + args['oauth']}).text)
     
     _validate_input_data(r)
+
+    print(r)
     
