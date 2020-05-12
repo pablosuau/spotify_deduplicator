@@ -1,4 +1,5 @@
 import requests
+import json
 
 def _read_arguments():
     '''
@@ -13,10 +14,25 @@ def _read_arguments():
 
     return args
 
+def _validate_input_data(r):
+    '''
+    Validates input data by looking at the API query response
+
+    Parameters:
+        - r (dict): API query response
+    '''
+    if 'error' in r.keys():
+        if r['error']['status'] == 404:
+            raise ValueError('User not found')
+        else:
+            raise ValueError('Invalid oauth token')
+
 if __name__ == "__main__":
     args = _read_arguments()
     
-    r = requests.get('https://api.spotify.com/v1/users/' + args['username'] + '/playlists?limit=50',
-                     headers = {'Content-Type': 'application/json', 
-                                'Authorization': 'Bearer ' + args['oauth']})
-    print(r.text)
+    r = json.loads(requests.get('https://api.spotify.com/v1/users/' + args['username'] + '/playlists?limit=50',
+                                headers = {'Content-Type': 'application/json', 
+                                           'Authorization': 'Bearer ' + args['oauth']}).text)
+    
+    _validate_input_data(r)
+    
