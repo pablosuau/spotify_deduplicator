@@ -1,20 +1,38 @@
 import requests
 import json
 
-def _read_arguments():
+CONFIG = 'config.json'
+SCOPES = ['playlist-read-private', 'playlist-read-collaborative']
+
+def _read_config():
     '''
-    Read input arguments
+    Read Configuration file
 
     Returns:
-        - a dictionary containing the username and the oauth key
+        - a dictionary containing the configuration data
     '''
-    args = {}
-    args['username'] = input('Spotify username: ')
-    args['oauth'] = input('Oauth key: ')
+    with open(CONFIG, 'r') as f:
+        args = json.load(f)
 
     return args
 
-def _query_api(url, oauth):
+def _request_token(args):
+    '''
+    Client credentials flow. Gets an access token and stores it as part 
+    of the input arguments dictionary
+
+    Parameters:
+        - args: the input arguments dictionary containing the configuration values
+    '''
+    # I cannot set the scope with client credentials - I need the user permission
+    body_params = {'grant_type': 'client_credentials', 'scope': ' '.join(SCOPES)}
+    r = requests.post('https://accounts.spotify.com/api/token', 
+                      data = body_params, 
+                      auth = (args['client_id'], args['client_secret'])) 
+
+    args['oauth'] = json.loads(r.text)['access_token']
+
+def _playlists_query(url, oauth):
     '''
     Queries Spotify's API
 
@@ -56,7 +74,7 @@ def _pull_playlists(r, oauth):
         return [r['items'][i]['name'] for i in range(len(r['items']))]
     playlists = _read_page(r)
     while r['next'] is not None:
-        r = _query_api(r['next'], oauth)
+        r = _playlists_query(r['next'], oauth)
         playlists.extend(_read_page(r))
 
     print(str(len(playlists)) + ' playlists pulled...')
@@ -64,13 +82,15 @@ def _pull_playlists(r, oauth):
     return playlists
 
 if __name__ == "__main__":
-    args = _read_arguments()
+    args = _read_config()
+
+    _request_token(args)
+
     
     # The maxmimum value for limit seems to be 50
-    r = _query_api('https://api.spotify.com/v1/users/' + args['username'] + '/playlists?limit=50', 
+    r = _playlists_query('https://api.spotify.com/v1/users/' + args['username'] + '/playlists?limit=50', 
                    args['oauth'])
     
     _validate_input_data(r)
 
     playlists = _pull_playlists(r, args['oauth'])
-    
