@@ -52,19 +52,17 @@ with open('config.json', 'r') as f:
     config = json.load(f)
 CLIENT_ID = config['client_id']
 CLIENT_SECRET = config['client_secret']
+SECRET_KEY = config['secret_key']
 REDIRECT_URI = 'http://127.0.0.1:5000/callback'
-
 
 # Spotify API endpoints
 AUTH_URL = 'https://accounts.spotify.com/authorize'
 TOKEN_URL = 'https://accounts.spotify.com/api/token'
 ME_URL = 'https://api.spotify.com/v1/me'
 
-
 # Start 'er up
 app = Flask(__name__)
-# This has to be changed to something which I have to read from the config file
-app.secret_key = 'secret_key_test_pablo'
+app.secret_key = SECRET_KEY
 # These three configuration parameters are required if the app is going to be served
 # from a server which domain name is an ip. Otherwise, cookies will not be stored
 # by Chrome.
