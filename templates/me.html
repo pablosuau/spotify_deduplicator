@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Profile{% endblock %}
+{% block content %}
+
+<!-- Response Data -->
+<div id="profile" class="media">
+  <div class="media-body">
+    <h3>Total number of playlists: {{ data|length }}</h3>
+    <table>
+    {% for item in data %}
+      <tr><td>{{item}}</td></tr>
+    {% endfor %}
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<button type="button" class="btn btn-success btn-xs" onclick="refreshTokens()">Refresh Token</button>
+<a href="/logout" class="btn btn-danger btn-xs">Logout</a>
+
+<!-- Token info template -->
+{% raw %}
+<script id="token-template" type="text/x-handlebars-template">
+  <dt>Access token</dt><dd class="text-truncate">{{access_token}}</dd>
+  <dt>Refresh token</dt><dd class="text-truncate">{{refresh_token}}</dd>
+</script>
+{% endraw %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.1.1/handlebars.js"></script>
+<script>
+  (function() {
+
+    // Token template
+    var tokenSource = document.getElementById('token-template').innerHTML,
+        tokenTemplate = Handlebars.compile(tokenSource),
+        tokenPlaceholder = document.getElementById('tokens');
+
+    function refreshTokens() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          let res_json = JSON.parse(this.responseText);
+          tokenPlaceholder.innerHTML = tokenTemplate(res_json);
+        }
+      };
+      xhttp.open("GET", "{{ url_for('refresh') }}", true);
+      xhttp.send();
+    }
+
+    window.refreshTokens = refreshTokens;
+  })();
+</script>
+{% endblock %}
