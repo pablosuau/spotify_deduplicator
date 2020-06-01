@@ -1,26 +1,7 @@
 ''' 
+Windows:
 set FLASK_APP=oauth.py
 flask -m flask run
-
-
-Example of Spotify authorization code flow (refreshable user auth).
-
-Displays profile information of authenticated user and access token
-information that can be refreshed by clicking a button.
-
-Basic flow:
-    -> '/'
-    -> Spotify login page
-    -> '/callback'
-    -> get tokens
-    -> use tokens to access API
-
-Required environment variables:
-    FLASK_APP, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, SECRET_KEY
-
-More info:
-    https://developer.spotify.com/documentation/general/guides/authorization-guide/#authorization-code-flow
-
 '''
 
 from flask import (
@@ -41,11 +22,8 @@ import secrets
 import string
 from urllib.parse import urlencode
 
-
-logging.basicConfig(
-    format='%(asctime)s - %(levelname)s - %(message)s', level=logging.DEBUG
-)
-
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', 
+                    level=logging.DEBUG)
 
 # Client info
 with open('config.json', 'r') as f:
@@ -60,7 +38,7 @@ AUTH_URL = 'https://accounts.spotify.com/authorize'
 TOKEN_URL = 'https://accounts.spotify.com/api/token'
 ME_URL = 'https://api.spotify.com/v1/me'
 
-# Start 'er up
+# Start Flask up
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 # These three configuration parameters are required if the app is going to be served
@@ -70,27 +48,22 @@ app.config['SERVER_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_DOMAIN'] = '127.0.0.1:5000'
 
-
 @app.route('/')
 def index():
-
+    '''
+    Initial endpoint.
+    '''
     return render_template('index.html')
-
 
 @app.route('/<loginout>')
 def login(loginout):
-    '''Login or logout user.
-
-    Note:
-        Login and logout process are essentially the same. Logout forces
-        re-login to appear, even if their token hasn't expired.
     '''
-
+    Login or logout user. Login and logout process are essentially the same. Logout 
+    forces re-login to appear, even if their token hasn't expired.
+    '''
     # redirect_uri can be guessed, so let's generate
     # a random `state` string to prevent csrf forgery.
-    state = ''.join(
-        secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16)
-    )
+    state = ''.join(secrets.choice(string.ascii_uppercase + string.digits) for _ in range(16))
 
     # Request authorization from user
     scope = 'playlist-read-private playlist-read-collaborative'
@@ -120,9 +93,11 @@ def login(loginout):
 
     return res
 
-
 @app.route('/callback')
 def callback():
+    '''
+    Deals with Spotify's answer
+    '''
     error = request.args.get('error')
     code = request.args.get('code')
     state = request.args.get('state')
@@ -134,7 +109,7 @@ def callback():
         app.logger.error('State mismatch: %s != %s', stored_state, state)
         abort(400)
 
-    # Request tokens with code we obtained
+    # Request tokens with the code we obtained
     payload = {
         'grant_type': 'authorization_code',
         'code': code,
@@ -144,14 +119,14 @@ def callback():
     # `auth=(CLIENT_ID, SECRET)` basically wraps an 'Authorization'
     # header with value:
     # b'Basic ' + b64encode((CLIENT_ID + ':' + SECRET).encode())
-    res = requests.post(TOKEN_URL, auth=(CLIENT_ID, CLIENT_SECRET), data=payload)
+    res = requests.post(TOKEN_URL, 
+                        auth = (CLIENT_ID, CLIENT_SECRET), 
+                        data = payload)
     res_data = res.json()
 
     if res_data.get('error') or res.status_code != 200:
-        app.logger.error(
-            'Failed to receive token: %s',
-            res_data.get('error', 'No error information received.'),
-        )
+        app.logger.error('Failed to receive token: %s',
+                         res_data.get('error', 'No error information received.'))
         abort(res.status_code)
 
     # Load tokens into session
@@ -164,7 +139,9 @@ def callback():
 
 @app.route('/refresh')
 def refresh():
-    '''Refresh access token.'''
+    '''
+    Refresh access token
+    '''
 
     payload = {
         'grant_type': 'refresh_token',
@@ -172,9 +149,10 @@ def refresh():
     }
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-    res = requests.post(
-        TOKEN_URL, auth=(CLIENT_ID, CLIENT_SECRET), data=payload, headers=headers
-    )
+    res = requests.post(TOKEN_URL, 
+                        auth = (CLIENT_ID, CLIENT_SECRET), 
+                        data = payload, 
+                        headers = headers)
     res_data = res.json()
 
     # Load new token into session
@@ -182,33 +160,35 @@ def refresh():
 
     return json.dumps(session['tokens'])
 
-def _playlists_query(url, oauth):
+def _playlists_query(url):
     '''
     Queries Spotify's API
 
     Parameters:
         - url (str): the API endpoint
-        - oauth (str): the oauth token
+
+    Returns:
+        - json response from the playlists query endpoint
     '''
     return json.loads(requests.get(url,
-                                   headers = {'Content-Type': 'application/json', 
-                                              'Authorization': 'Bearer ' + oauth}).text)
+                                   headers = {'Authorization': 'Bearer ' + session['tokens']['access_token']}).text)
 
-def _pull_playlists(r, oauth):
+def _pull_playlists(user_id):
     '''
     Pulls the complete list of playlists by looking at the first API query response
 
     Parameters:
-        - r (dict): API query response
-        - oauth (str): the oauth token
+        - user_id: user's id
+
     Returns:
         - A list with the playlist names
     '''
     def _read_page(page):
         return [r['items'][i]['name'] for i in range(len(r['items']))]
+    r = _playlists_query('https://api.spotify.com/v1/users/' + user_id + '/playlists?limit=50')
     playlists = _read_page(r)
     while r['next'] is not None:
-        r = _playlists_query(r['next'], oauth)
+        r = _playlists_query(r['next'])
         playlists.extend(_read_page(r))
 
     print(str(len(playlists)) + ' playlists pulled...')
@@ -217,7 +197,9 @@ def _pull_playlists(r, oauth):
 
 @app.route('/playlists')
 def playlists():
-    '''Get profile info as a API example.'''
+    '''
+    Pulls user's playlists and displays duplicated playlists
+    '''
 
     # Check for tokens
     if 'tokens' not in session:
@@ -226,13 +208,10 @@ def playlists():
 
     # Get profile info
     headers = {'Authorization': f"Bearer {session['tokens'].get('access_token')}"}
-
-    res = requests.get(ME_URL, headers=headers)
+    res = requests.get(ME_URL, headers = headers)
     res_data = res.json()
-
-    r = _playlists_query('https://api.spotify.com/v1/users/' + res_data['id'] + '/playlists?limit=50', 
-                         session['tokens']['access_token'])
-    playlists = _pull_playlists(r, session['tokens']['access_token'])
+ 
+    playlists = _pull_playlists(res_data['id'])
 
     if res.status_code != 200:
         app.logger.error(
@@ -241,4 +220,4 @@ def playlists():
         )
         abort(res.status_code)
 
-    return render_template('playlists.html', data=playlists, tokens=session.get('tokens'))
+    return render_template('playlists.html', data = playlists, tokens = session.get('tokens'))
