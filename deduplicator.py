@@ -160,7 +160,7 @@ def callback():
         'refresh_token': res_data.get('refresh_token'),
     }
 
-    return redirect(url_for('me'))
+    return redirect(url_for('playlists'))
 
 @app.route('/refresh')
 def refresh():
@@ -215,8 +215,8 @@ def _pull_playlists(r, oauth):
 
     return playlists
 
-@app.route('/me')
-def me():
+@app.route('/playlists')
+def playlists():
     '''Get profile info as a API example.'''
 
     # Check for tokens
@@ -241,4 +241,4 @@ def me():
         )
         abort(res.status_code)
 
-    return render_template('me.html', data=playlists, tokens=session.get('tokens'))
+    return render_template('playlists.html', data=playlists, tokens=session.get('tokens'))
