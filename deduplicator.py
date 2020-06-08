@@ -203,10 +203,11 @@ def playlists():
  
     playlists = _pull_playlists(res_data['id'])
 
+    duplicated = []
     for i in range(len(playlists)):
         for j in range(i + 1, len(playlists)):
             if fuzz.ratio(playlists[i], playlists[j]) > 90:
-                print(playlists[i] + ' ----- ' + playlists[j])
+                duplicated.append([playlists[i], playlists[j]])
 
     if res.status_code != 200:
         app.logger.error(
@@ -215,4 +216,4 @@ def playlists():
         )
         abort(res.status_code)
 
-    return render_template('playlists.html', data = playlists, tokens = session.get('tokens'))
+    return render_template('playlists.html', total = len(playlists), data = duplicated, tokens = session.get('tokens'))

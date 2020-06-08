@@ -5,10 +5,15 @@
 <!-- Response Data -->
 <div id="profile" class="media">
   <div class="media-body">
-    <h3>Total number of playlists: {{ data|length }}</h3>
+    <h3>List of similar playlist names in your collection</h3>
+    <p>We found <strong>{{ data|length }}</strong> pairs of similarly named playlists in your collection of <strong>{{ total }}</strong> playlists</p>
     <table>
-    {% for item in data %}
-      <tr><td>{{item}}</td></tr>
+    {% for items in data %}
+      <tr>
+      {% for item in items %}
+        <td>{{item}}</td>
+      {% endfor %}
+      </tr>
     {% endfor %}
     </table>
   </div>
