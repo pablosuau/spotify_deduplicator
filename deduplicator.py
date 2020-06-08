@@ -182,8 +182,6 @@ def _pull_playlists(user_id):
         res_data = res.json()
         playlists.extend(_read_page(res_data))
 
-    print(str(len(playlists)) + ' playlists pulled...')
-
     return playlists
 
 @app.route('/playlists')
