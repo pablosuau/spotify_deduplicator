@@ -21,6 +21,7 @@ import requests
 import secrets
 import string
 from urllib.parse import urlencode
+from fuzzywuzzy import fuzz
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', 
                     level=logging.DEBUG)
@@ -201,6 +202,11 @@ def playlists():
     res_data = res.json()
  
     playlists = _pull_playlists(res_data['id'])
+
+    for i in range(len(playlists)):
+        for j in range(i + 1, len(playlists)):
+            if fuzz.ratio(playlists[i], playlists[j]) > 90:
+                print(playlists[i] + ' ----- ' + playlists[j])
 
     if res.status_code != 200:
         app.logger.error(
