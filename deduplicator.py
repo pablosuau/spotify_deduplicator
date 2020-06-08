@@ -37,6 +37,7 @@ REDIRECT_URI = 'http://127.0.0.1:5000/callback'
 AUTH_URL = 'https://accounts.spotify.com/authorize'
 TOKEN_URL = 'https://accounts.spotify.com/api/token'
 ME_URL = 'https://api.spotify.com/v1/me'
+PLAYLISTS_URL = 'https://api.spotify.com/v1/users/{USER_ID}/playlists?limit=50'
 
 # Start Flask up
 app = Flask(__name__)
@@ -160,19 +161,6 @@ def refresh():
 
     return json.dumps(session['tokens'])
 
-def _playlists_query(url):
-    '''
-    Queries Spotify's API
-
-    Parameters:
-        - url (str): the API endpoint
-
-    Returns:
-        - json response from the playlists query endpoint
-    '''
-    return json.loads(requests.get(url,
-                                   headers = {'Authorization': 'Bearer ' + session['tokens']['access_token']}).text)
-
 def _pull_playlists(user_id):
     '''
     Pulls the complete list of playlists by looking at the first API query response
@@ -183,13 +171,16 @@ def _pull_playlists(user_id):
     Returns:
         - A list with the playlist names
     '''
-    def _read_page(page):
-        return [r['items'][i]['name'] for i in range(len(r['items']))]
-    r = _playlists_query('https://api.spotify.com/v1/users/' + user_id + '/playlists?limit=50')
-    playlists = _read_page(r)
-    while r['next'] is not None:
-        r = _playlists_query(r['next'])
-        playlists.extend(_read_page(r))
+    def _read_page(res_data):
+        return [res_data['items'][i]['name'] for i in range(len(res_data['items']))]
+    headers = {'Authorization': f"Bearer {session['tokens'].get('access_token')}"}
+    res = requests.get(PLAYLISTS_URL.replace('{USER_ID}', user_id), headers = headers)
+    res_data = res.json()
+    playlists = _read_page(res_data)
+    while res_data['next'] is not None:
+        res = requests.get(res_data['next'], headers = headers)
+        res_data = res.json()
+        playlists.extend(_read_page(res_data))
 
     print(str(len(playlists)) + ' playlists pulled...')
 
