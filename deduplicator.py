@@ -53,6 +53,21 @@ app.config['SERVER_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_DOMAIN'] = '127.0.0.1:5000'
 
+def _validate_api_call(res):
+    '''
+    Produces an error message and interrupts the application if the code returned by the API
+    call is different from 200.
+
+    Parameters:
+        - res: the response object returned by a request call
+    '''
+    if res.status_code != 200:
+        app.logger.error(
+            'Failed to connect to connect to Spotify\'s API: %s',
+            res_data.get('error', 'No error message returned.'),
+        )
+        abort(res.status_code)
+
 class ProcessingThread(threading.Thread):
     ''' 
     Class to process user's data asynchronously on the background by means of a thread
@@ -76,10 +91,12 @@ class ProcessingThread(threading.Thread):
             return [res_data['items'][i]['name'] for i in range(len(res_data['items']))]
         headers = {'Authorization': f"Bearer {self.access_token}"}
         res = requests.get(PLAYLISTS_URL.replace('{USER_ID}', user_id), headers = headers)
+        _validate_api_call(res)
         res_data = res.json()
         self.playlists = _read_page(res_data)
         while res_data['next'] is not None:
             res = requests.get(res_data['next'], headers = headers)
+            _validate_api_call(res)
             res_data = res.json()
             self.playlists.extend(_read_page(res_data))
 
@@ -101,6 +118,7 @@ class ProcessingThread(threading.Thread):
         # Get profile info
         headers = {'Authorization': f"Bearer {self.access_token}"}
         res = requests.get(ME_URL, headers = headers)
+        _validate_api_call(res)
         res_data = res.json()
 
         self._pull_playlists(res_data['id'])
@@ -193,12 +211,8 @@ def callback():
     res = requests.post(TOKEN_URL, 
                         auth = (CLIENT_ID, CLIENT_SECRET), 
                         data = payload)
+    _validate_api_call(res)
     res_data = res.json()
-
-    if res_data.get('error') or res.status_code != 200:
-        app.logger.error('Failed to receive token: %s',
-                         res_data.get('error', 'No error information received.'))
-        abort(res.status_code)
 
     # Load tokens into session
     session['tokens'] = {
@@ -228,6 +242,7 @@ def refresh():
                         auth = (CLIENT_ID, CLIENT_SECRET), 
                         data = payload, 
                         headers = headers)
+    _validate_api_call(res)
     res_data = res.json()
 
     # Load new token into session
@@ -242,6 +257,14 @@ def playlists(thread_id):
     '''
     global processing_threads
 
+    if 'tokens' not in session:
+        app.logger.error('No tokens in session.')
+        abort(400)
+
+    if not thread_id in processing_threads.keys():
+        app.logger.error('Wrong thread id.')
+        abort(500)
+
     return render_template('playlists.html', 
                            thread_id = thread_id,
                            progress_api = processing_threads[thread_id].progress_api,
@@ -249,31 +272,3 @@ def playlists(thread_id):
                            progress_duplicated = processing_threads[thread_id].progress_duplicated,
                            data = processing_threads[thread_id].duplicated, 
                            tokens = session.get('tokens'))
-    '''
-    # Check for tokens
-    if 'tokens' not in session:
-        app.logger.error('No tokens in session.')
-        abort(400)
-
-    # Get profile info
-    headers = {'Authorization': f"Bearer {session['tokens'].get('access_token')}"}
-    res = requests.get(ME_URL, headers = headers)
-    res_data = res.json()
- 
-    playlists = _pull_playlists(res_data['id'])
-
-    duplicated = []
-    for i in range(len(playlists)):
-        for j in range(i + 1, len(playlists)):
-            if fuzz.ratio(playlists[i], playlists[j]) > 90:
-                duplicated.append([playlists[i], playlists[j]])
-
-    if res.status_code != 200:
-        app.logger.error(
-            'Failed to get profile info: %s',
-            res_data.get('error', 'No error message returned.'),
-        )
-        abort(res.status_code)
-
-    return render_template('playlists.html', total = len(playlists), data = duplicated, tokens = session.get('tokens'))
-    '''
