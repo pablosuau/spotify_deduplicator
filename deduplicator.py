@@ -54,6 +54,9 @@ app.config['SESSION_COOKIE_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_DOMAIN'] = '127.0.0.1:5000'
 
 class ProcessingThread(threading.Thread):
+    ''' 
+    Class to process user's data asynchronously on the background by means of a thread
+    '''
     def __init__(self, access_token):
         self.access_token = access_token
         self.progress_api = 0
@@ -81,9 +84,20 @@ class ProcessingThread(threading.Thread):
             self.playlists.extend(_read_page(res_data))
 
     def get_len_playlists(self):
+        '''
+        Get the total number of playlists in the user's collection
+
+        Returns:
+            - Number of playlists in the user's collection
+        '''
         return len(self.playlists)
 
     def run(self):
+        '''
+        Prepares the data to be presented to the user: a) pulls username from access token, b) gets
+        user's playlist names, and c) detects duplicated playlists. All this data is stored as 
+        internal object properties. 
+        '''
         # Get profile info
         headers = {'Authorization': f"Bearer {self.access_token}"}
         res = requests.get(ME_URL, headers = headers)
@@ -233,7 +247,6 @@ def playlists(thread_id):
                            progress_api = processing_threads[thread_id].progress_api,
                            len_playlists = processing_threads[thread_id].get_len_playlists(),
                            progress_duplicated = processing_threads[thread_id].progress_duplicated,
-                           total = len(processing_threads[thread_id].playlists), 
                            data = processing_threads[thread_id].duplicated, 
                            tokens = session.get('tokens'))
     '''
