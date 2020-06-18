@@ -20,6 +20,9 @@ import os
 import requests
 import secrets
 import string
+import time
+import threading
+import random
 from urllib.parse import urlencode
 from fuzzywuzzy import fuzz
 
@@ -41,7 +44,7 @@ ME_URL = 'https://api.spotify.com/v1/me'
 PLAYLISTS_URL = 'https://api.spotify.com/v1/users/{USER_ID}/playlists?limit=50'
 
 # Start Flask up
-app = Flask(__name__)
+app = Flask(__name__, static_url_path = '/static')
 app.secret_key = SECRET_KEY
 # These three configuration parameters are required if the app is going to be served
 # from a server which domain name is an ip. Otherwise, cookies will not be stored
@@ -49,6 +52,56 @@ app.secret_key = SECRET_KEY
 app.config['SERVER_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_DOMAIN'] = '127.0.0.1:5000'
+
+class ProcessingThread(threading.Thread):
+    def __init__(self, access_token):
+        self.access_token = access_token
+        self.progress_api = 0
+        self.progress_duplicated = 0
+        self.playlists = []
+        self.duplicated = []
+        super().__init__()
+
+    def _pull_playlists(self, user_id):
+        '''
+        Pulls the complete list of playlists by looking at the first API query response
+
+        Parameters:
+            - user_id: user's id
+        '''
+        def _read_page(res_data):
+            return [res_data['items'][i]['name'] for i in range(len(res_data['items']))]
+        headers = {'Authorization': f"Bearer {self.access_token}"}
+        res = requests.get(PLAYLISTS_URL.replace('{USER_ID}', user_id), headers = headers)
+        res_data = res.json()
+        self.playlists = _read_page(res_data)
+        while res_data['next'] is not None:
+            res = requests.get(res_data['next'], headers = headers)
+            res_data = res.json()
+            self.playlists.extend(_read_page(res_data))
+
+    def get_len_playlists(self):
+        return len(self.playlists)
+
+    def run(self):
+        # Get profile info
+        headers = {'Authorization': f"Bearer {self.access_token}"}
+        res = requests.get(ME_URL, headers = headers)
+        res_data = res.json()
+
+        self._pull_playlists(res_data['id'])
+        self.progress_api = 1
+
+        total_size = len(self.playlists) * (len(self.playlists) - 1) / 2.0
+        processed = 0
+        for i in range(len(self.playlists)):
+            for j in range(i + 1, len(self.playlists)):
+                processed += 1
+                self.progress_duplicated = round((processed / total_size) * 100, 2)
+                if fuzz.ratio(self.playlists[i], self.playlists[j]) > 90:
+                    self.duplicated.append([self.playlists[i], self.playlists[j]])
+
+processing_threads = {}
 
 @app.route('/')
 def index():
@@ -100,6 +153,8 @@ def callback():
     '''
     Deals with Spotify's answer
     '''
+    global processing_threads
+
     error = request.args.get('error')
     code = request.args.get('code')
     state = request.args.get('state')
@@ -137,7 +192,11 @@ def callback():
         'refresh_token': res_data.get('refresh_token'),
     }
 
-    return redirect(url_for('playlists'))
+    thread_id = random.randint(0, 10000)
+    processing_threads[thread_id] = ProcessingThread(res_data.get('access_token'))
+    processing_threads[thread_id].start()
+
+    return redirect(url_for('playlists', thread_id = thread_id))
 
 @app.route('/refresh')
 def refresh():
@@ -162,35 +221,22 @@ def refresh():
 
     return json.dumps(session['tokens'])
 
-def _pull_playlists(user_id):
-    '''
-    Pulls the complete list of playlists by looking at the first API query response
-
-    Parameters:
-        - user_id: user's id
-
-    Returns:
-        - A list with the playlist names
-    '''
-    def _read_page(res_data):
-        return [res_data['items'][i]['name'] for i in range(len(res_data['items']))]
-    headers = {'Authorization': f"Bearer {session['tokens'].get('access_token')}"}
-    res = requests.get(PLAYLISTS_URL.replace('{USER_ID}', user_id), headers = headers)
-    res_data = res.json()
-    playlists = _read_page(res_data)
-    while res_data['next'] is not None:
-        res = requests.get(res_data['next'], headers = headers)
-        res_data = res.json()
-        playlists.extend(_read_page(res_data))
-
-    return playlists
-
-@app.route('/playlists')
-def playlists():
+@app.route('/playlists/<int:thread_id>')
+def playlists(thread_id):
     '''
     Pulls user's playlists and displays duplicated playlists
     '''
+    global processing_threads
 
+    return render_template('playlists.html', 
+                           thread_id = thread_id,
+                           progress_api = processing_threads[thread_id].progress_api,
+                           len_playlists = processing_threads[thread_id].get_len_playlists(),
+                           progress_duplicated = processing_threads[thread_id].progress_duplicated,
+                           total = len(processing_threads[thread_id].playlists), 
+                           data = processing_threads[thread_id].duplicated, 
+                           tokens = session.get('tokens'))
+    '''
     # Check for tokens
     if 'tokens' not in session:
         app.logger.error('No tokens in session.')
@@ -217,3 +263,4 @@ def playlists():
         abort(res.status_code)
 
     return render_template('playlists.html', total = len(playlists), data = duplicated, tokens = session.get('tokens'))
+    '''

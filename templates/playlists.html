@@ -1,21 +1,44 @@
 {% extends "base.html" %}
 {% block title %}Playlists{% endblock %}
-{% block content %}
 
+{% block content %}
 <!-- Response Data -->
 <div id="profile" class="media">
   <div class="media-body">
-    <h3>List of similar playlist names in your collection</h3>
-    <p>We found <strong>{{ data|length }}</strong> pairs of similarly named playlists in your collection of <strong>{{ total }}</strong> playlists</p>
-    <table>
-    {% for items in data %}
-      <tr>
-      {% for item in items %}
-        <td>{{item}}</td>
-      {% endfor %}
-      </tr>
-    {% endfor %}
-    </table>
+    {% if progress_api < 1 %}
+        <p><img src="{{url_for('static', filename = 'loading.gif')}}" width="50px"/>Pulling playlists from spotify ({{ len_playlists }} playlists pulled)...</p>
+        <script>
+          // Refresh the page until the results are ready
+          function refresh() {
+             window.location.reload(true);
+           }
+
+          setTimeout(refresh, 5000);
+        </script>
+    {% elif progress_duplicated < 100.0 %}
+        <p style="margin-bottom: 0px"><img style="margin-left: 20px; margin-right: 15px;" src="{{url_for('static', filename = 'checkmark.png')}}" width="15px"/>{{ len_playlists }} playlists pulled. </p>
+        <p><img src="{{url_for('static', filename = 'loading.gif')}}" width="50px"/>Processing playlists: {{ progress_duplicated }}%</p>
+        <script>
+          // Refresh the page until the results are ready
+          function refresh() {
+             window.location.reload(true);
+           }
+
+          setTimeout(refresh, 5000);
+        </script>
+    {% else %}
+        <h3>List of similar playlist names in your collection</h3>
+        <p>We found <strong>{{ data|length }}</strong> pairs of similarly named playlists in your collection of <strong>{{ total }}</strong> playlists</p>
+        <table>
+        {% for items in data %}
+          <tr>
+          {% for item in items %}
+            <td>{{item}}</td>
+          {% endfor %}
+          </tr>
+        {% endfor %}
+        </table>
+    {% endif %}
   </div>
 </div>
 {% endblock %}
@@ -54,6 +77,7 @@
     }
 
     window.refreshTokens = refreshTokens;
+
   })();
 </script>
 {% endblock %}
