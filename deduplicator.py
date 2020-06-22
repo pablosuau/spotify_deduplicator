@@ -218,10 +218,11 @@ def callback():
         'refresh_token': res_data.get('refresh_token'),
     }
 
-    thread_id = random.randint(0, 10000)
-    processing_threads[thread_id] = ProcessingThread(res_data.get('access_token'))
-    processing_threads[thread_id].start()
-    session['thread_id'] = thread_id
+    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
+        thread_id = random.randint(0, 10000)
+        processing_threads[thread_id] = ProcessingThread(res_data.get('access_token'))
+        processing_threads[thread_id].start()
+        session['thread_id'] = thread_id
 
     return redirect(url_for('playlists'))
 
@@ -255,6 +256,9 @@ def playlists():
     Pulls user's playlists and displays duplicated playlists
     '''
     global processing_threads
+
+    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
+        return redirect(url_for('index'))
 
     thread_id = session['thread_id']
 
