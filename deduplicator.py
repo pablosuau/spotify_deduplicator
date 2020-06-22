@@ -221,8 +221,9 @@ def callback():
     thread_id = random.randint(0, 10000)
     processing_threads[thread_id] = ProcessingThread(res_data.get('access_token'))
     processing_threads[thread_id].start()
+    session['thread_id'] = thread_id
 
-    return redirect(url_for('playlists', thread_id = thread_id))
+    return redirect(url_for('playlists'))
 
 @app.route('/refresh')
 def refresh():
@@ -248,12 +249,14 @@ def refresh():
 
     return json.dumps(session['tokens'])
 
-@app.route('/playlists/<int:thread_id>')
-def playlists(thread_id):
+@app.route('/playlists/')
+def playlists():
     '''
     Pulls user's playlists and displays duplicated playlists
     '''
     global processing_threads
+
+    thread_id = session['thread_id']
 
     if 'tokens' not in session:
         app.logger.error('No tokens in session.')
@@ -264,7 +267,6 @@ def playlists(thread_id):
         abort(500)
 
     return render_template('playlists.html', 
-                           thread_id = thread_id,
                            progress_api = processing_threads[thread_id].progress_api,
                            len_playlists = processing_threads[thread_id].get_len_playlists(),
                            progress_duplicated = processing_threads[thread_id].progress_duplicated,
