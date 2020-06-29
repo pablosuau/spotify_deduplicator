@@ -21,6 +21,7 @@ import secrets
 import string
 import threading
 import random
+from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from fuzzywuzzy import fuzz
 
@@ -76,6 +77,8 @@ class ProcessingThread(threading.Thread):
         self.progress_duplicated = 0
         self.playlists = []
         self.duplicated = []
+        self.date_completed = None
+        self.running_time = None
         super().__init__()
 
     def _pull_playlists(self, user_id):
@@ -113,6 +116,7 @@ class ProcessingThread(threading.Thread):
         user's playlist names, and c) detects duplicated playlists. All this data is stored as 
         internal object properties. 
         '''
+        date_started = datetime.now()
         # Get profile info
         headers = {'Authorization': f"Bearer {self.access_token}"}
         res = requests.get(ME_URL, headers = headers)
@@ -130,6 +134,10 @@ class ProcessingThread(threading.Thread):
                 self.progress_duplicated = round((processed / total_size) * 100, 2)
                 if fuzz.ratio(self.playlists[i], self.playlists[j]) > 90:
                     self.duplicated.append([self.playlists[i], self.playlists[j]])
+
+        self.date_completed = datetime.now()
+        self.running_time = str(timedelta(seconds = (self.date_completed - date_started).total_seconds()))
+        self.date_completed = self.date_completed.strftime("%d/%m/%Y - %H:%M:%S")
 
 processing_threads = {}
 
@@ -270,9 +278,13 @@ def playlists():
         app.logger.error('Wrong thread id.')
         abort(500)
 
+    print(processing_threads[thread_id].is_alive())
+
     return render_template('playlists.html', 
                            progress_api = processing_threads[thread_id].progress_api,
                            len_playlists = processing_threads[thread_id].get_len_playlists(),
                            progress_duplicated = processing_threads[thread_id].progress_duplicated,
                            data = processing_threads[thread_id].duplicated, 
+                           date_completed = processing_threads[thread_id].date_completed,
+                           running_time = processing_threads[thread_id].running_time,
                            tokens = session.get('tokens'))
