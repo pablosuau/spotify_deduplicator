@@ -67,6 +67,37 @@ def _validate_api_call(res):
         )
         abort(res.status_code)
 
+def _init_playlists():
+    '''
+    Common code used in multiple functions in which we need to validate some data
+    before processing the playlists
+    '''
+    global processing_threads
+
+    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
+        return redirect(url_for('index'))
+
+    thread_id = session['thread_id']
+
+    if 'tokens' not in session:
+        app.logger.error('No tokens in session.')
+        abort(400)
+
+    if not thread_id in processing_threads.keys():
+        app.logger.error('Wrong thread id.')
+        abort(500)
+
+def _init_thread():
+    '''
+    Initialises and launches a processing thread
+    '''
+    global processing_threads
+
+    thread_id = random.randint(0, 10000)
+    processing_threads[thread_id] = ProcessingThread(session['tokens']['access_token'])
+    processing_threads[thread_id].start()
+    session['thread_id'] = thread_id
+
 class ProcessingThread(threading.Thread):
     ''' 
     Class to process user's data asynchronously on the background by means of a thread
@@ -227,10 +258,7 @@ def callback():
     }
 
     if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
-        thread_id = random.randint(0, 10000)
-        processing_threads[thread_id] = ProcessingThread(res_data.get('access_token'))
-        processing_threads[thread_id].start()
-        session['thread_id'] = thread_id
+        _init_thread()
 
     return redirect(url_for('playlists'))
 
@@ -265,23 +293,9 @@ def reset():
     '''
     global processing_threads
 
-    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
-        return redirect(url_for('index'))
+    _init_playlists()
 
-    thread_id = session['thread_id']
-
-    if 'tokens' not in session:
-        app.logger.error('No tokens in session.')
-        abort(400)
-
-    if not thread_id in processing_threads.keys():
-        app.logger.error('Wrong thread id.')
-        abort(500)
-
-    thread_id = random.randint(0, 10000)
-    processing_threads[thread_id] = ProcessingThread(session['tokens']['access_token'])
-    processing_threads[thread_id].start()
-    session['thread_id'] = thread_id
+    _init_thread()
 
     return redirect(url_for('playlists'))
 
@@ -292,18 +306,9 @@ def playlists():
     '''
     global processing_threads
 
-    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
-        return redirect(url_for('index'))
+    _init_playlists()
 
     thread_id = session['thread_id']
-
-    if 'tokens' not in session:
-        app.logger.error('No tokens in session.')
-        abort(400)
-
-    if not thread_id in processing_threads.keys():
-        app.logger.error('Wrong thread id.')
-        abort(500)
 
     return render_template('playlists.html', 
                            progress_api = processing_threads[thread_id].progress_api,
