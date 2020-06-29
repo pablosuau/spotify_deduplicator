@@ -258,7 +258,34 @@ def refresh():
 
     return json.dumps(session['tokens'])
 
-@app.route('/playlists/')
+@app.route('/reset')
+def reset():
+    '''
+    Kills the existing thread and therefore restarts the duplicates search 
+    '''
+    global processing_threads
+
+    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
+        return redirect(url_for('index'))
+
+    thread_id = session['thread_id']
+
+    if 'tokens' not in session:
+        app.logger.error('No tokens in session.')
+        abort(400)
+
+    if not thread_id in processing_threads.keys():
+        app.logger.error('Wrong thread id.')
+        abort(500)
+
+    thread_id = random.randint(0, 10000)
+    processing_threads[thread_id] = ProcessingThread(session['tokens']['access_token'])
+    processing_threads[thread_id].start()
+    session['thread_id'] = thread_id
+
+    return redirect(url_for('playlists'))
+
+@app.route('/playlists')
 def playlists():
     '''
     Pulls user's playlists and displays duplicated playlists
@@ -277,8 +304,6 @@ def playlists():
     if not thread_id in processing_threads.keys():
         app.logger.error('Wrong thread id.')
         abort(500)
-
-    print(processing_threads[thread_id].is_alive())
 
     return render_template('playlists.html', 
                            progress_api = processing_threads[thread_id].progress_api,

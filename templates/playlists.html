@@ -45,7 +45,10 @@
 {% endblock %}
 
 {% block footer %}
-<button type="button" class="btn btn-success btn-xs" onclick="refreshTokens()">Refresh Token</button>
+<button type="button" class="btn btn-success btn-xs" onclick="refreshTokens()">Refresh token</button>
+{% if progress_duplicated == 100.0 %}
+    <a href="/reset" class="btn btn-secondary">Refresh results</a>
+{% endif %}
 <a href="/logout" class="btn btn-danger btn-xs">Logout</a>
 
 <!-- Token info template -->
