@@ -63,7 +63,7 @@ def _validate_api_call(res):
     if res.status_code != 200:
         app.logger.error(
             'Failed to connect to connect to Spotify\'s API: %s',
-            res_data.get('error', 'No error message returned.'),
+            res.json().get('error', 'No error message returned.'),
         )
         abort(res.status_code)
 
