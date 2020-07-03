@@ -229,6 +229,9 @@ def callback():
     state = request.args.get('state')
     stored_state = request.cookies.get('spotify_auth_state')
 
+    if error == 'access_denied':
+        return redirect(url_for('index'))
+
     # Check state
     if state is None or state != stored_state:
         app.logger.error('Error message: %s', repr(error))
