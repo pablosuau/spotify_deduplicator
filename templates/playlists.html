@@ -1,7 +1,41 @@
 {% extends "base.html" %}
 {% block title %}Playlists{% endblock %}
-
 {% block content %}
+<!-- Token info template -->
+{% raw %}
+<script id="token-template" type="text/x-handlebars-template">
+  <dt>Access token</dt><dd class="text-truncate">{{access_token}}</dd>
+  <dt>Refresh token</dt><dd class="text-truncate">{{refresh_token}}</dd>
+</script>
+{% endraw %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.1.1/handlebars.js"></script>
+<script>
+    // Token template
+    var tokenSource = document.getElementById('token-template').innerHTML,
+        tokenTemplate = Handlebars.compile(tokenSource),
+        tokenPlaceholder = document.getElementById('tokens');
+
+    function refreshTokens() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          let res_json = JSON.parse(this.responseText);
+          tokenPlaceholder.innerHTML = tokenTemplate(res_json);
+        }
+      };
+      xhttp.open("GET", "{{ url_for('refresh') }}", true);
+      xhttp.send();
+    }
+
+    function refreshPage() {
+      refreshTokens()
+      window.location.reload(true);
+    }
+
+    window.refreshTokens = refreshTokens;
+    window.refreshPage = refreshPage;
+</script>
 <!-- Response Data -->
 <div id="profile" class="media">
   <div class="media-body">
@@ -9,22 +43,14 @@
         <p><img src="{{url_for('static', filename = 'loading.gif')}}" width="50px"/>Pulling playlists from spotify ({{ len_playlists }} playlists pulled)...</p>
         <script>
           // Refresh the page until the results are ready
-          function refresh() {
-             window.location.reload(true);
-           }
-
-          setTimeout(refresh, 5000);
+          setTimeout(window.refreshPage, 5000);
         </script>
     {% elif progress_duplicated < 100.0 %}
         <p style="margin-bottom: 0px"><img style="margin-left: 20px; margin-right: 14px;" src="{{url_for('static', filename = 'checkmark.png')}}" width="15px"/>{{ len_playlists }} playlists pulled. </p>
         <p><img src="{{url_for('static', filename = 'loading.gif')}}" width="50px"/>Processing playlists: {{ progress_duplicated }}%</p>
         <script>
           // Refresh the page until the results are ready
-          function refresh() {
-             window.location.reload(true);
-           }
-
-          setTimeout(refresh, 5000);
+          setTimeout(window.refreshPage, 5000);
         </script>
     {% else %}
         <h3>List of similar playlist names in your collection</h3>
@@ -45,43 +71,8 @@
 {% endblock %}
 
 {% block footer %}
-<button type="button" class="btn btn-success btn-xs" onclick="refreshTokens()">Refresh token</button>
 {% if progress_duplicated == 100.0 %}
     <a href="/reset" class="btn btn-secondary">Refresh results</a>
 {% endif %}
 <a href="/logout" class="btn btn-danger btn-xs">Logout</a>
-
-<!-- Token info template -->
-{% raw %}
-<script id="token-template" type="text/x-handlebars-template">
-  <dt>Access token</dt><dd class="text-truncate">{{access_token}}</dd>
-  <dt>Refresh token</dt><dd class="text-truncate">{{refresh_token}}</dd>
-</script>
-{% endraw %}
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.1.1/handlebars.js"></script>
-<script>
-  (function() {
-
-    // Token template
-    var tokenSource = document.getElementById('token-template').innerHTML,
-        tokenTemplate = Handlebars.compile(tokenSource),
-        tokenPlaceholder = document.getElementById('tokens');
-
-    function refreshTokens() {
-      var xhttp = new XMLHttpRequest();
-      xhttp.onreadystatechange = function() {
-        if (this.readyState == 4 && this.status == 200) {
-          let res_json = JSON.parse(this.responseText);
-          tokenPlaceholder.innerHTML = tokenTemplate(res_json);
-        }
-      };
-      xhttp.open("GET", "{{ url_for('refresh') }}", true);
-      xhttp.send();
-    }
-
-    window.refreshTokens = refreshTokens;
-
-  })();
-</script>
 {% endblock %}
