@@ -110,6 +110,7 @@ class ProcessingThread(threading.Thread):
         self.duplicated = []
         self.date_completed = None
         self.running_time = None
+        self.kill = False
         super().__init__()
 
     def _pull_playlists(self, user_id):
@@ -126,7 +127,7 @@ class ProcessingThread(threading.Thread):
         _validate_api_call(res)
         res_data = res.json()
         self.playlists = _read_page(res_data)
-        while res_data['next'] is not None:
+        while res_data['next'] is not None and self.kill == False:
             res = requests.get(res_data['next'], headers = headers)
             _validate_api_call(res)
             res_data = res.json()
@@ -160,11 +161,17 @@ class ProcessingThread(threading.Thread):
         total_size = len(self.playlists) * (len(self.playlists) - 1) / 2.0
         processed = 0
         for i in range(len(self.playlists)):
+            if self.kill:
+                break
             for j in range(i + 1, len(self.playlists)):
+                if self.kill:
+                    break
                 processed += 1
                 self.progress_duplicated = round((processed / total_size) * 100, 2)
                 if fuzz.ratio(self.playlists[i], self.playlists[j]) > 90:
                     self.duplicated.append([self.playlists[i], self.playlists[j]])
+        if self.kill:
+            print('KILLLED')
 
         self.date_completed = datetime.now()
         self.running_time = str(timedelta(seconds = (self.date_completed - date_started).total_seconds()))
@@ -177,7 +184,10 @@ def index():
     '''
     Initial endpoint.
     '''
-    return render_template('index.html')
+    if session.get('thread_id') is None or session['thread_id'] not in processing_threads.keys():
+        return render_template('index.html')
+    else:
+        return redirect(url_for('playlists'))
 
 @app.route('/<loginout>')
 def login(loginout):
@@ -201,6 +211,8 @@ def login(loginout):
             'scope': scope,
             'show_dialog': True,
         }
+        processing_threads[session['thread_id']].kill = True
+        session['thread_id'] = None
     elif loginout == 'login':
         payload = {
             'client_id': CLIENT_ID,
