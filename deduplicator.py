@@ -24,9 +24,10 @@ import random
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from fuzzywuzzy import fuzz
+from db import DB
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', 
-                    level=logging.DEBUG)
+logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(message)s', 
+                    level = logging.DEBUG)
 
 # Client info
 with open('config.json', 'r') as f:
@@ -51,6 +52,15 @@ app.secret_key = SECRET_KEY
 app.config['SERVER_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_NAME'] = '127.0.0.1:5000'
 app.config['SESSION_COOKIE_DOMAIN'] = '127.0.0.1:5000'
+
+# Database constants and initialisation (including creating the database table if 
+# it doesn't already exist)
+DB_FILE = 'db/user_threads.db'
+db = DB(DB_FILE, app.logger)
+sql_table = '''
+CREATE TABLE IF NOT EXISTS user_threads (id integer PRIMARY KEY, username text NOT NULL)
+'''
+db.run_sql(sql_table)
 
 def _validate_api_call(res):
     '''
@@ -91,10 +101,23 @@ def _init_thread():
     '''
     Initialises and launches a processing thread
     '''
-    global processing_threads
+    global processing_threads   
 
-    thread_id = random.randint(0, 10000)
-    processing_threads[thread_id] = ProcessingThread(session['tokens']['access_token'])
+    # Get profile info
+    headers = {'Authorization': f"Bearer {session['tokens']['access_token']}"}
+    res = requests.get(ME_URL, headers = headers)
+    _validate_api_call(res)
+    res_data = res.json()
+    user_id = res_data['id']
+
+    db = DB(DB_FILE, app.logger)
+    select_query = 'SELECT id FROM user_threads WHERE username = "' + user_id + '"'
+    rows = db.run_sql(select_query)
+    if len(rows) == 0:
+        db.run_sql('INSERT INTO user_threads(username) VALUES ("' + user_id + '")')
+    rows = db.run_sql(select_query)
+    thread_id = rows[0][0]
+    processing_threads[thread_id] = ProcessingThread(session['tokens']['access_token'], user_id)
     processing_threads[thread_id].start()
     session['thread_id'] = thread_id
 
@@ -102,8 +125,9 @@ class ProcessingThread(threading.Thread):
     ''' 
     Class to process user's data asynchronously on the background by means of a thread
     '''
-    def __init__(self, access_token):
+    def __init__(self, access_token, user_id):
         self.access_token = access_token
+        self.user_id = user_id
         self.progress_api = 0
         self.progress_duplicated = 0
         self.playlists = []
@@ -113,17 +137,14 @@ class ProcessingThread(threading.Thread):
         self.kill = False
         super().__init__()
 
-    def _pull_playlists(self, user_id):
+    def _pull_playlists(self):
         '''
         Pulls the complete list of playlists by looking at the first API query response
-
-        Parameters:
-            - user_id: user's id
         '''
         def _read_page(res_data):
             return [res_data['items'][i]['name'] for i in range(len(res_data['items']))]
         headers = {'Authorization': f"Bearer {self.access_token}"}
-        res = requests.get(PLAYLISTS_URL.replace('{USER_ID}', user_id), headers = headers)
+        res = requests.get(PLAYLISTS_URL.replace('{USER_ID}', self.user_id), headers = headers)
         _validate_api_call(res)
         res_data = res.json()
         self.playlists = _read_page(res_data)
@@ -149,13 +170,9 @@ class ProcessingThread(threading.Thread):
         internal object properties. 
         '''
         date_started = datetime.now()
-        # Get profile info
-        headers = {'Authorization': f"Bearer {self.access_token}"}
-        res = requests.get(ME_URL, headers = headers)
-        _validate_api_call(res)
-        res_data = res.json()
+        
 
-        self._pull_playlists(res_data['id'])
+        self._pull_playlists()
         self.progress_api = 1
 
         total_size = len(self.playlists) * (len(self.playlists) - 1) / 2.0
