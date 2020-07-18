@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Playlists{% endblock %}
+{% block content %}
+<!-- Token info template -->
+{% raw %}
+<script id="token-template" type="text/x-handlebars-template">
+  <dt>Access token</dt><dd class="text-truncate">{{access_token}}</dd>
+  <dt>Refresh token</dt><dd class="text-truncate">{{refresh_token}}</dd>
+</script>
+{% endraw %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.1.1/handlebars.js"></script>
+<script>
+    // Token template
+    var tokenSource = document.getElementById('token-template').innerHTML,
+        tokenTemplate = Handlebars.compile(tokenSource),
+        tokenPlaceholder = document.getElementById('tokens');
+
+    function refreshTokens() {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          let res_json = JSON.parse(this.responseText);
+          tokenPlaceholder.innerHTML = tokenTemplate(res_json);
+        }
+      };
+      xhttp.open("GET", "{{ url_for('refresh') }}", true);
+      xhttp.send();
+    }
+
+    function refreshPage() {
+      refreshTokens()
+      window.location.reload(true);
+    }
+
+    window.refreshTokens = refreshTokens;
+    window.refreshPage = refreshPage;
+</script>
+<!-- Response Data -->
+<div id="profile" class="media">
+  <div class="media-body">
+    {% if progress_api < 1 %}
+        <p><img src="{{url_for('static', filename = 'loading.gif')}}" width="50px"/>Pulling playlists from spotify ({{ len_playlists }} playlists pulled)...</p>
+        <script>
+          // Refresh the page until the results are ready
+          setTimeout(window.refreshPage, 5000);
+        </script>
+    {% elif progress_duplicated < 100.0 %}
+        <p style="margin-bottom: 0px"><img style="margin-left: 20px; margin-right: 14px;" src="{{url_for('static', filename = 'checkmark.png')}}" width="15px"/>{{ len_playlists }} playlists pulled. </p>
+        <p><img src="{{url_for('static', filename = 'loading.gif')}}" width="50px"/>Processing playlists: {{ progress_duplicated }}%</p>
+        <script>
+          // Refresh the page until the results are ready
+          setTimeout(window.refreshPage, 5000);
+        </script>
+    {% else %}
+        <h3>List of similar playlist names in your collection</h3>
+        <p>We found <strong>{{ data|length }}</strong> pairs of similarly named playlists in your collection of <strong>{{ len_playlists }}</strong> playlists</p>
+        <table>
+        {% for items in data %}
+          <tr>
+          {% for item in items %}
+            <td>{{item}}</td>
+          {% endfor %}
+          </tr>
+        {% endfor %}
+        </table><br>
+        <p>Data processing completed on: <strong>{{ date_completed }}</strong> - Running time: <strong>{{ running_time }}</strong></p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+{% if progress_duplicated == 100.0 %}
+    <a href="/reset" class="btn btn-secondary">Refresh results</a>
+{% endif %}
+<a href="/logout" class="btn btn-danger btn-xs">Logout</a>
+{% endblock %}
